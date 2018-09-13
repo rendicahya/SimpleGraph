@@ -18,55 +18,90 @@ class SimpleGraph:
       else: index[a][b].add(c)
 
   def triples(self, sub, pred, obj):
-    # check which terms are present in order to use the correct index:
     try:
       if sub != None:
         if pred != None:
-          # sub pred obj
           if obj != None:
             if obj in self._spo[sub][pred]:
               yield (sub, pred, obj)
-          # sub pred None
           else:
             for retObj in self._spo[sub][pred]:
               yield (sub, pred, retObj)
         else:
-          # sub None obj
           if obj != None:
             for retPred in self._osp[obj][sub]:
               yield (sub, retPred, obj)
-          # sub None None
           else:
             for retPred, objSet in self._spo[sub].items():
               for retObj in objSet:
                 yield (sub, retPred, retObj)
       else:
         if pred != None:
-          # None pred obj
           if obj != None:
             for retSub in self._pos[pred][obj]:
               yield (retSub, pred, obj)
-          # None pred None
           else:
             for retObj, subSet in self._pos[pred].items():
               for retSub in subSet:
                 yield (retSub, pred, retObj)
         else:
-          # None None obj
           if obj != None:
             for retSub, predSet in self._osp[obj].items():
               for retPred in predSet:
                 yield (retSub, retPred, obj)
-          # None None None
           else:
             for retSub, predSet in self._spo.items():
               for retPred, objSet in predSet.items():
                 for retObj in objSet:
                   yield (retSub, retPred, retObj)
-    # KeyErrors occur if a query term wasn't in the index,
-    # so we yield nothing:
     except KeyError:
       pass 
+
+  def query(self,clauses):
+    bindings = None
+
+    for clause in clauses:
+      bpos = {}
+      qc = []
+
+      for pos, x in enumerate(clause):
+        if x.startswith('?'):
+          qc.append(None)
+          bpos[x] = pos
+        else:
+          qc.append(x)
+
+      rows = list(self.triples((qc[0], qc[1], qc[2])))
+
+      if bindings == None:
+        bindings = []
+
+        for row in rows:
+          binding = {}
+
+          for var, pos in bpos.items():
+            binding[var] = row[pos]
+          bindings.append(binding)
+      else:
+        newb = []
+
+        for binding in bindings:
+          for row in rows:
+            validmatch = True
+            tempbinding = binding.copy()
+
+            for var, pos in bpos.items():
+              if var in tempbinding:
+                if tempbinding[var] != row[pos]:
+                  validmatch = False
+              else:
+                tempbinding[var] = row[pos]
+
+            if validmatch:
+              newb.append(tempbinding)
+
+        bindings = newb
+    return bindings
 
   def value(self, sub=None, pred=None, obj=None):
     for retSub, retPred, retObj in self.triples(sub, pred, obj):
